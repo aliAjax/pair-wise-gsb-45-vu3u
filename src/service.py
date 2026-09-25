@@ -30,7 +30,9 @@ class Service:
             raise PermissionDenied("角色无权创建记录")
         reference = text({"reference": reference}, "reference")
         prepared = self.rules.prepare_create(payload or {})
-        self.rules.check_create_conflicts(prepared, self.repository.list_records(limit=500))
+        existing = self.repository.list_records(limit=500)
+        self.rules.check_create_conflicts(prepared, existing)
+        self.rules.check_channel_conflicts(prepared, existing)
         return self.repository.create(reference, self.rules.INITIAL_STATE, prepared, actor.user_id)
 
     def list_records(self, actor: Actor, state: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
@@ -51,7 +53,8 @@ class Service:
             raise PermissionDenied("角色无权执行该操作")
         record = self.repository.get(record_id)
         self.rules.require_transition(record, action)
-        new_state, new_payload, summary = self.rules.apply_action(record, action, data or {})
+        existing = self.repository.list_records(limit=500)
+        new_state, new_payload, summary = self.rules.apply_action(record, action, data or {}, existing)
         return self.repository.mutate(
             record_id=record_id,
             expected_version=int(expected_version),
